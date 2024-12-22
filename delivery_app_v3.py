@@ -14,6 +14,7 @@ cursor.execute("""
         delivery_person TEXT,
         order_id TEXT,
         amount REAL,
+        payment_method TEXT,
         date TEXT,
         exit_time TEXT
     )
@@ -53,15 +54,16 @@ if option == "إدخال الطلبات":
         delivery_person = st.selectbox("اسم الدليفري", delivery_persons, key="delivery_person_input")
         order_id = st.text_input("رقم الطلب", key="order_id_input")
         order_amount = st.number_input("قيمة الطلب", min_value=0.0, step=0.01, format="%.2f", key="order_amount_input")
+        payment_method = st.selectbox("طريقة الدفع", ["كاش", "فيزا"], key="payment_method_input")
         order_date = datetime.now().strftime("%Y-%m-%d")
         exit_time = datetime.now().strftime("%H:%M:%S")
         
         if st.button("حفظ الطلب", key="save_order_button"):
             if delivery_person and order_id:
                 cursor.execute("""
-                    INSERT INTO orders (delivery_person, order_id, amount, date, exit_time)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (delivery_person, order_id, order_amount, order_date, exit_time))
+                    INSERT INTO orders (delivery_person, order_id, amount, payment_method, date, exit_time)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (delivery_person, order_id, order_amount, payment_method, order_date, exit_time))
                 conn.commit()
                 st.success("تم حفظ الطلب بنجاح!")
             else:
@@ -133,22 +135,32 @@ elif option == "عرض الطلبات":
     orders = cursor.fetchall()
     
     if orders:
-        df = pd.DataFrame(orders, columns=["ID", "الدليفري", "رقم الطلب", "المبلغ", "تاريخ الطلب", "وقت الخروج"])
+        df = pd.DataFrame(orders, columns=["ID", "الدليفري", "رقم الطلب", "المبلغ", "طريقة الدفع", "تاريخ الطلب", "وقت الخروج"])
         st.dataframe(df)
     else:
         st.warning("لا توجد نتائج تطابق البحث.")
+    
+    # إضافة جزء حذف الطلبات بعد عرض تفاصيل الطلبات وقبل جدول إجمالي الطلبات
+    st.subheader("حذف طلب")
+    order_to_delete = st.text_input("أدخل رقم الطلب لحذفه", key="delete_order_input")
+    if st.button("حذف الطلب", key="delete_order_button"):
+        if order_to_delete:
+            cursor.execute("DELETE FROM orders WHERE order_id = ?", (order_to_delete,))
+            conn.commit()
+            st.success("تم حذف الطلب بنجاح!")
+        else:
+            st.error("يرجى إدخال رقم الطلب.")
 
-    st.subheader("إجمالي المبالغ لكل دليفري")
-    cursor.execute("SELECT delivery_person, SUM(amount) as total FROM orders GROUP BY delivery_person ORDER BY total DESC")
+    st.subheader("إجمالي الطلبات")
+    cursor.execute("SELECT delivery_person, COUNT(*) as total_orders, SUM(amount) as total_amount FROM orders GROUP BY delivery_person ORDER BY total_amount DESC")
     totals = cursor.fetchall()
     
     if totals:
-        totals_df = pd.DataFrame(totals, columns=["الدليفري", "إجمالي المبلغ"])
+        totals_df = pd.DataFrame(totals, columns=["الدليفري", "إجمالي الطلبات", "إجمالي المبلغ"])
         st.dataframe(totals_df)
         
         st.subheader("رسم بياني لإجمالي الطلبات")
         chart_data = totals_df.set_index("الدليفري")
         st.bar_chart(chart_data["إجمالي المبلغ"])
     else:
-
         st.warning("لا توجد بيانات لعرض الإجماليات.")
