@@ -129,6 +129,7 @@ elif option == "إدارة أسماء الدليفري":
             st.warning("لا توجد أسماء دليفري حالياً.")
             
 # القسم الخاص بعرض الطلبات
+# القسم الخاص بعرض الطلبات
 elif option == "عرض الطلبات":
     st.header("عرض الطلبات")
     
@@ -157,11 +158,37 @@ elif option == "عرض الطلبات":
     orders = cursor.fetchall()
 
     if orders:
+        # عرض الطلبات
         df = pd.DataFrame(orders, columns=["ID", "الدليفري", "رقم الطلب", "المبلغ", "تاريخ الطلب", "وقت الخروج", "طريقة الدفع"])
         st.dataframe(df)
+
+        # حساب وعرض مجموع الطلبات لكل دليفري
+        st.subheader("مجموع الطلبات لكل دليفري")
+        summary_query = """
+            SELECT delivery_person, SUM(amount) as total_amount, COUNT(*) as total_orders
+            FROM orders
+            WHERE 1=1
+        """
+        if apply_filters:
+            if selected_name != "الكل":
+                summary_query += " AND delivery_person = ?"
+            if selected_payment_method != "الكل":
+                summary_query += " AND payment_method = ?"
+            summary_query += " AND date BETWEEN ? AND ?"
+
+        summary_query += " GROUP BY delivery_person ORDER BY total_amount DESC"
+
+        cursor.execute(summary_query, params)
+        summary_data = cursor.fetchall()
+
+        if summary_data:
+            df_summary = pd.DataFrame(summary_data, columns=["الدليفري", "إجمالي المبلغ", "عدد الطلبات"])
+            st.dataframe(df_summary)
+        else:
+            st.warning("لا توجد بيانات لإظهارها في الملخص.")
     else:
         st.warning("لا توجد نتائج تطابق الفلاتر.")
-        
+
 # القسم الخاص بتعديل الطلبات
 elif option == "تعديل الطلبات":
     st.header("تعديل الطلبات")
